@@ -63,6 +63,7 @@ var confinedWalks = []walkToolCall{
 	{"search_paths", `{"entity_names":["Kestrel Vale","Heron Mill"],"max_depth":3}`},
 	{"search_paths", `{"entity_names":["Kestrel Vale","Heron Mill"],"max_depth":3,"include_bookkeeping":true,"with_text":true}`},
 	{"knowledge_memory_shortest_path", `{"from_entity_name":"Kestrel Vale","to_entity_name":"Heron Mill"}`},
+	{"find_nodes", `{"names":["Kestrel Vale","Heron Mill","secret","deal"]}`},
 }
 
 // alphaAnswersBeforeAndAfter writes alpha's half as the operator, asks

@@ -17,9 +17,6 @@ func TestUnderACallerScopeEveryGraphToolLeavesOutAnEntityOnlyAnotherCollectionKn
 	ctx := WithCallerScope(context.Background(), alphaScope())
 	for _, tool := range graphToolCalls() {
 		t.Run(tool.name, func(t *testing.T) {
-			if tool.name == "find_nodes" && findNodesNeedsTheHiddenFilter {
-				t.Skip("find_nodes does not pass the hidden-node filter yet (its own PR)")
-			}
 			out, err := tool.call(ctx, db)
 			answer := answerOf(t, out, err)
 			for _, marker := range outOfScopeEntityMarkers {

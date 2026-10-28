@@ -2,6 +2,7 @@ package cortexdb
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -162,6 +163,16 @@ func (t *GraphRAGToolbox) FindNodes(ctx context.Context, req ToolFindNodesReques
 				}
 			}
 			kept, _ := t.db.withoutExpiredDocuments(ctx, ordered, nil, nil)
+			// The type filter above read the stored type. An entity the
+			// caller's scope reduces is served without it (scopedNode),
+			// so under a type filter it is no match, as in the walks
+			// (ofTypes).
+			if len(types) > 0 {
+				kept = slices.DeleteFunc(kept, func(node *graph.GraphNode) bool {
+					_, ok := types[strings.ToLower(node.NodeType)]
+					return !ok
+				})
+			}
 			for _, node := range kept[:min(len(kept), limit-len(match.Nodes))] {
 				if len(match.Nodes) == 0 {
 					match.Match = [...]string{"exact", "fold", "contains"}[rank[node.ID]]
