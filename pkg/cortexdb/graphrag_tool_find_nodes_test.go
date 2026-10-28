@@ -3,6 +3,7 @@ package cortexdb
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -228,12 +229,19 @@ func TestFindNodesFoldsEachNodeOnceACall(t *testing.T) {
 	}
 	// Names that match nothing, so the cost measured is the matching alone.
 	names := []string{"Quokka 1", "Quokka 2", "Quokka 3", "Quokka 4", "Quokka 5", "Quokka 6", "Quokka 7", "Quokka 8", "Quokka 9"}
+	// AllocsPerRun counts every allocation in the process, and the store's
+	// background work allocates too; that can only add, so the least of a
+	// few rounds is the call's own cost.
 	allocsFor := func(names []string) float64 {
-		return testing.AllocsPerRun(3, func() {
-			if _, err := tools.FindNodes(ctx, ToolFindNodesRequest{Names: names}); err != nil {
-				t.Fatalf("find: %v", err)
-			}
-		})
+		least := math.Inf(1)
+		for range 5 {
+			least = min(least, testing.AllocsPerRun(3, func() {
+				if _, err := tools.FindNodes(ctx, ToolFindNodesRequest{Names: names}); err != nil {
+					t.Fatalf("find: %v", err)
+				}
+			}))
+		}
+		return least
 	}
 	one, nine := allocsFor(names[:1]), allocsFor(names)
 	if perName := (nine - one) / 8; perName > 50 {
