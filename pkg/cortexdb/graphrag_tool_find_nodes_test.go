@@ -207,3 +207,36 @@ func TestFindNodesDoesNotMatchOnAnEmptyFold(t *testing.T) {
 		t.Fatalf("punctuation must not resolve to a concept, got %+v", resp.Matches[0].Nodes)
 	}
 }
+
+// TestFindNodesFoldsEachNodeOnceACall: the content of every node is folded
+// once a call, not once a name asked about. Folding is most of the cost of
+// a call, and callers are told to batch their names, so a batch of nine
+// names must cost about what one does: a few allocations a name, not one
+// a node.
+func TestFindNodesFoldsEachNodeOnceACall(t *testing.T) {
+	if raceEnabled {
+		t.Skip("the race detector adds allocations of its own; CI runs this test in its race-exempt step")
+	}
+	_, tools, ctx := findNodesTestDB(t)
+	const nodes = 500
+	entities := make([]ToolEntityInput, 0, nodes)
+	for i := range nodes {
+		entities = append(entities, ToolEntityInput{Name: fmt.Sprintf("Concept %04d", i), Type: "Concept"})
+	}
+	if _, err := tools.UpsertEntities(ctx, ToolUpsertEntitiesRequest{Entities: entities}); err != nil {
+		t.Fatalf("seed entities: %v", err)
+	}
+	// Names that match nothing, so the cost measured is the matching alone.
+	names := []string{"Quokka 1", "Quokka 2", "Quokka 3", "Quokka 4", "Quokka 5", "Quokka 6", "Quokka 7", "Quokka 8", "Quokka 9"}
+	allocsFor := func(names []string) float64 {
+		return testing.AllocsPerRun(3, func() {
+			if _, err := tools.FindNodes(ctx, ToolFindNodesRequest{Names: names}); err != nil {
+				t.Fatalf("find: %v", err)
+			}
+		})
+	}
+	one, nine := allocsFor(names[:1]), allocsFor(names)
+	if perName := (nine - one) / 8; perName > 50 {
+		t.Errorf("each name asked about costs %.0f allocations over %d nodes (one name: %.0f, nine: %.0f), want at most 50: the nodes are folded once a name", perName, nodes, one, nine)
+	}
+}

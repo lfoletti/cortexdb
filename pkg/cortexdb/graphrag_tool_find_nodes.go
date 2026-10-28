@@ -67,7 +67,9 @@ func (t *GraphRAGToolbox) FindNodes(ctx context.Context, req ToolFindNodesReques
 	if err != nil {
 		return nil, err
 	}
-	type candidate struct{ id, content, nodeType string }
+	// folded is the content folded once, here, and not once per name asked
+	// about: folding every node is most of the cost of a call.
+	type candidate struct{ id, content, nodeType, folded string }
 	all := make([]candidate, 0, 1024)
 	for rows.Next() {
 		var c candidate
@@ -80,6 +82,7 @@ func (t *GraphRAGToolbox) FindNodes(ctx context.Context, req ToolFindNodesReques
 				continue
 			}
 		}
+		c.folded = foldName(c.content)
 		all = append(all, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -105,9 +108,9 @@ func (t *GraphRAGToolbox) FindNodes(ctx context.Context, req ToolFindNodesReques
 			// folds to "", and so does every other such name — they would all
 			// match each other, and the caller would be handed a confident
 			// answer assembled out of two things having nothing in common.
-			case folded != "" && foldName(c.content) == folded:
+			case folded != "" && c.folded == folded:
 				rank = 1
-			case folded != "" && strings.Contains(foldName(c.content), folded):
+			case folded != "" && strings.Contains(c.folded, folded):
 				rank = 2
 			}
 			if rank >= 0 {

@@ -38,9 +38,10 @@ jobs:
         run: go test -v -race -timeout 25m -coverprofile=coverage.txt -covermode=atomic ./...
 
       # Tests that skip themselves under -race because they are single-goroutine
-      # and heavy enough that the race detector only makes them slow.
+      # and heavy enough that the race detector only makes them slow, or count
+      # allocations, which the race detector adds to.
       - name: Run race-exempt tests
-        run: go test -count=1 -run 'TestALargeUpsertDoesNotExhaustTheSQLPlaceholders' ./pkg/cortexdb
+        run: go test -count=1 -run 'TestALargeUpsertDoesNotExhaustTheSQLPlaceholders|TestFindNodesFoldsEachNodeOnceACall' ./pkg/cortexdb
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
