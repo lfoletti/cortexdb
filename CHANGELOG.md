@@ -4,8 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.141.0] - 2026-10-29
+
+### Security
+
+- `find_nodes` sizes its matches by the nodes it can match, not by the
+  caller's `limit`: a limit past what a slice can hold (`1 << 62`) panicked,
+  and since gRPC handlers do not recover, `cortexdb-grpc` exited. Any key
+  allowed to call `find_nodes` could stop the server.
+- A node follows its document's scope rules only when its id is the one
+  ingest derives from its document (`doc:<id>`, `chunk:<id>:NNN`), not when
+  its type says `document` or `chunk`: an entity another collection typed
+  `document` was served whole to a key confined to a collection that knows
+  it, with that collection's description and collections list.
+- A gRPC handler that panics is answered with `Internal` and logged with its
+  stack instead of taking the server down.
+
+Both reported privately by Lauro Foletti.
+
 ### Added
 
+- A key confined to a collection or user may call `find_nodes`, held by the
+  facade's hidden-node filter; `node_types` matches the type the caller is
+  served (#111). Lauro Foletti.
 - Flow traces (W3C Trace Context): gRPC, HTTP and MCP calls join the caller's
   `traceparent` (MCP: `params._meta.traceparent`) as a child span or start a
   trace, return their own span (`traceparent`, MCP `_meta`
