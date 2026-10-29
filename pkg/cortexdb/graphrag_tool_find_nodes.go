@@ -98,7 +98,7 @@ func (t *GraphRAGToolbox) FindNodes(ctx context.Context, req ToolFindNodesReques
 			rank int // 0 exact, 1 folded, 2 contains
 			size int
 		}
-		hits := make([]hit, 0, limit)
+		hits := make([]hit, 0, min(limit, len(all)))
 		for _, c := range all {
 			rank := -1
 			switch {
