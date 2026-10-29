@@ -125,9 +125,11 @@ func graphToolCalls() []graphToolCall {
 				memoryGraphNodeID("zeus-mem"), memoryGraphNodeID("hermes-mem"), kv, EntityNodeID("Project Nightjar"),
 			}})
 		}},
-		{name: "find_nodes", served: []string{"alpha mill", "delivers on Tuesdays"}, call: func(ctx context.Context, db *DB) (any, error) {
-			// matches[].name echoes each name asked: no marker is one of them.
-			return db.GraphRAGTools().FindNodes(ctx, ToolFindNodesRequest{Names: []string{"the river", "secretly funds", "owes me money", "on Tuesdays"}})
+		{name: "find_nodes", served: []string{"alpha mill", "delivers on Tuesdays", `"id":"` + kv + `"`}, call: func(ctx context.Context, db *DB) (any, error) {
+			// matches[].name echoes each name asked: no marker is one of
+			// them, and the entities are asked in lower case, so a served
+			// "Kestrel Vale" is a node, not the echo.
+			return db.GraphRAGTools().FindNodes(ctx, ToolFindNodesRequest{Names: []string{"the river", "secretly funds", "owes me money", "on Tuesdays", "kestrel vale", "project nightjar"}})
 		}},
 		{name: "knowledge_memory_neighbors", served: []string{"alpha mill", "delivers on Tuesdays"}, call: func(ctx context.Context, db *DB) (any, error) {
 			return db.KnowledgeMemory().Neighbors(ctx, KnowledgeMemoryNeighborsRequest{EntityName: "Kestrel Vale", MaxDepth: 2})
@@ -142,12 +144,6 @@ func graphToolCalls() []graphToolCall {
 		}},
 	}
 }
-
-// findNodesNeedsTheHiddenFilter: find_nodes reads graph_nodes.content
-// without the hidden-node filter the seven other tools pass through. The
-// fix of that filter is its own PR; once it is in, find_nodes inherits the
-// caller scope like the others and this skip goes.
-const findNodesNeedsTheHiddenFilter = true
 
 // answerOf is a tool's answer as a port would serve it.
 func answerOf(t *testing.T, out any, err error) string {
@@ -175,9 +171,6 @@ func TestUnderACallerScopeEveryGraphToolLeavesOutAnotherCollection(t *testing.T)
 	ctx := WithCallerScope(context.Background(), alphaScope())
 	for _, tool := range graphToolCalls() {
 		t.Run(tool.name, func(t *testing.T) {
-			if tool.name == "find_nodes" && findNodesNeedsTheHiddenFilter {
-				t.Skip("find_nodes does not pass the hidden-node filter yet (its own PR)")
-			}
 			out, err := tool.call(ctx, db)
 			answer := answerOf(t, out, err)
 			for _, marker := range outOfScopeMarkers {

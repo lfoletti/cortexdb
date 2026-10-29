@@ -27,6 +27,7 @@ var confinedWalks = []walkToolCall{
 	{"/v1/tools/search_paths", `{"entity_names":["Kestrel Vale","Heron Mill"],"max_depth":3,"include_bookkeeping":true}`},
 	{"/v1/tools/knowledge_memory_shortest_path", `{"from_entity_name":"Kestrel Vale","to_entity_name":"Heron Mill"}`},
 	{"/v1/query", `{"collection":"alpha","limit":10,"prefetch":[{"kind":"graph","entity_names":["Kestrel Vale"],"max_hops":3}]}`},
+	{"/v1/tools/find_nodes", `{"names":["Kestrel Vale","Heron Mill","secret","deal"]}`},
 }
 
 // alphaAnswersBeforeAndAfter writes alpha's two documents, one mentioning

@@ -17,6 +17,7 @@ var graphWalkCalls = map[string]string{
 		"disable_graph":false,"graph_light":true,"max_entities_per_chunk":4}`,
 	"expand_graph":                   `{"node_ids":["entity:kestrel_vale"],"max_hops":2,"edge_types":["runs"],"node_types":["chunk"],"limit":10,"relation_policies":{"runs":{"weight":1}}}`,
 	"get_nodes":                      `{"node_ids":["entity:kestrel_vale","chunk:b1:000"]}`,
+	"find_nodes":                     `{"names":["Kestrel Vale"],"node_types":["entity"],"limit":5}`,
 	"knowledge_memory_neighbors":     `{"node_id":"entity:kestrel_vale","entity_name":"Kestrel Vale","max_depth":2,"edge_types":["runs"],"node_types":["chunk"],"direction":"both","limit":10}`,
 	"knowledge_memory_shortest_path": `{"from_node_id":"entity:kestrel_vale","to_node_id":"entity:alpha_mill","from_entity_name":"Kestrel Vale","to_entity_name":"Alpha Mill"}`,
 }
@@ -65,7 +66,7 @@ func TestTheGraphWalksAreOpenToAConfinedKeyAndConfinedByTheFacade(t *testing.T) 
 // the content of every node and opens in a change of its own.
 func TestTheWholeGraphReadsStayRefusedToAConfinedKey(t *testing.T) {
 	alpha := Key{ID: "alpha", Secret: "a", Clearance: ReadOnly, Scope: Scope{Collection: "alpha"}}
-	for _, tool := range []string{"graph_list_all", "graph_cypher_query", "rank_graph_nodes", "predict_graph_edges", "disambiguate_mentions", "graph_statistics", "find_nodes"} {
+	for _, tool := range []string{"graph_list_all", "graph_cypher_query", "rank_graph_nodes", "predict_graph_edges", "disambiguate_mentions", "graph_statistics"} {
 		why := RefusedTools()[tool]
 		if why == "" || why == defaultRefusal {
 			t.Errorf("%s is refused without a reason of its own: %q", tool, why)

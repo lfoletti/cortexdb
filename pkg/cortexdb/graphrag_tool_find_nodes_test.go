@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/liliang-cn/cortexdb/v2/internal/testname"
@@ -246,5 +247,72 @@ func TestFindNodesFoldsEachNodeOnceACall(t *testing.T) {
 	one, nine := allocsFor(names[:1]), allocsFor(names)
 	if perName := (nine - one) / 8; perName > 50 {
 		t.Errorf("each name asked about costs %.0f allocations over %d nodes (one name: %.0f, nine: %.0f), want at most 50: the nodes are folded once a name", perName, nodes, one, nine)
+	}
+}
+
+// TestFindNodesMatchesNoTypeOnAnEntityTheScopeReduces: under a caller
+// scope, an entity both collections know is served reduced, without the
+// type its last writer gave it (scopedNode). A type filter is matched
+// against the node as served, as in the walks (ofTypes), so the stored
+// type, here the one only beta wrote, cannot be read by asking for it.
+func TestFindNodesMatchesNoTypeOnAnEntityTheScopeReduces(t *testing.T) {
+	db, err := Open(DefaultConfig(filepath.Join(t.TempDir(), "find-nodes-types.db")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+	for _, save := range []KnowledgeSaveRequest{
+		{KnowledgeID: "a1", Collection: "alpha", Content: "Kestrel Vale runs the alpha mill.",
+			Entities: []ToolEntityInput{{Name: "Kestrel Vale", Type: "Person", ChunkIDs: []string{graphChunkNodeID("a1", 0)}}}},
+		{KnowledgeID: "a2", Collection: "alpha", Content: "Vale Farm sells alpha grain."},
+		{KnowledgeID: "b1", Collection: "beta", Content: "Kestrel Vale works for the other side.",
+			Entities: []ToolEntityInput{{Name: "Kestrel Vale", Type: "Spy", ChunkIDs: []string{graphChunkNodeID("b1", 0)}}}},
+	} {
+		if _, err := db.SaveKnowledge(ctx, save); err != nil {
+			t.Fatal(err)
+		}
+	}
+	kv := EntityNodeID("Kestrel Vale")
+	served := func(ctx context.Context, nodeTypes []string) bool {
+		resp, err := db.GraphRAGTools().FindNodes(ctx, ToolFindNodesRequest{Names: []string{"Kestrel Vale"}, NodeTypes: nodeTypes})
+		if err != nil {
+			t.Fatalf("find %v: %v", nodeTypes, err)
+		}
+		for _, node := range resp.Matches[0].Nodes {
+			if node.ID == kv {
+				return true
+			}
+		}
+		return false
+	}
+	// Without a scope the stored type is the last writer's, beta's.
+	if !served(ctx, []string{"Spy"}) {
+		t.Fatalf("without a scope, Kestrel Vale is not found as a Spy: the fixture does not store beta's type")
+	}
+	alpha := WithCallerScope(ctx, alphaScope())
+	if !served(alpha, nil) {
+		t.Fatalf("under alpha's scope, Kestrel Vale is not served at all")
+	}
+	for _, nodeType := range []string{"Spy", "Person"} {
+		if served(alpha, []string{nodeType}) {
+			t.Errorf("under alpha's scope, Kestrel Vale is served for node_types [%s]: the filter reads the type of the last writer", nodeType)
+		}
+	}
+	// A node the type filter drops under the scope does not use up the
+	// limit, as a hidden node does not. "vale" matches, shortest first,
+	// the entity (stored as a Spy, served without a type), a2's chunk,
+	// a1's chunk and beta's hidden chunk: two windows of two, and alpha
+	// is served both of its chunks.
+	resp, err := db.GraphRAGTools().FindNodes(alpha, ToolFindNodesRequest{Names: []string{"vale"}, NodeTypes: []string{"Spy", "chunk"}, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, node := range resp.Matches[0].Nodes {
+		ids = append(ids, node.ID)
+	}
+	if want := []string{graphChunkNodeID("a2", 0), graphChunkNodeID("a1", 0)}; !slices.Equal(ids, want) {
+		t.Errorf("under alpha's scope, vale as a Spy or a chunk, limit 2, serves %v, want %v", ids, want)
 	}
 }

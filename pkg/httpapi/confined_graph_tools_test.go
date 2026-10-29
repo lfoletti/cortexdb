@@ -37,6 +37,7 @@ var graphWalks = []struct{ tool, args string }{
 	{"get_nodes", `{"node_ids":["entity:kestrel_vale","entity:project_nightjar","chunk:a1:000","chunk:b1:000","doc:b1","memory:zeus-mem"]}`},
 	{"knowledge_memory_neighbors", `{"entity_name":"Kestrel Vale","max_depth":2}`},
 	{"knowledge_memory_shortest_path", `{"from_entity_name":"Kestrel Vale","to_entity_name":"Alpha Mill"}`},
+	{"find_nodes", `{"names":["kestrel vale","project nightjar","secretly","owes me"]}`},
 }
 
 var outsideAlpha = []string{"secretly funds", "chunk:b1:000", "doc:b1", "entity:project_nightjar", "BETADESC", `"beta"`, `"source_document_ids"`, "owes me money", "memory:zeus-mem", "0001-01-01"}
@@ -206,12 +207,17 @@ func TestAConfinedKeyWalksTheGraphOfItsCollectionOnlyOverHTTP(t *testing.T) {
 		if !strings.Contains(answer, "Kestrel Vale") {
 			t.Errorf("alpha %s is not served its own collection: %s", walk.tool, answer)
 		}
+		// Alpha's own chunk holds the name too: find_nodes must serve the
+		// entity node itself.
+		if walk.tool == "find_nodes" && !strings.Contains(answer, `"id":"entity:kestrel_vale"`) {
+			t.Errorf("alpha find_nodes does not serve the entity Kestrel Vale: %s", answer)
+		}
 	}
 	if status, payload := do(t, srv, http.MethodPost, "/v1/tools/expand_graph", "op-secret", `{"node_ids":["entity:kestrel_vale"],"max_hops":2}`); status != http.StatusOK ||
 		!strings.Contains(string(payload), "secretly funds") || !strings.Contains(string(payload), "BETADESC") || !strings.Contains(string(payload), `"source_document_ids"`) {
 		t.Fatalf("operator expand_graph = %d, want beta's chunk, its description and the documents named: %s", status, payload)
 	}
-	for _, tool := range []string{"graph_list_all", "graph_statistics", "find_nodes"} {
+	for _, tool := range []string{"graph_list_all", "graph_statistics"} {
 		wantStatus(t, srv, http.MethodPost, "/v1/tools/"+tool, "alpha-secret", `{}`, http.StatusForbidden)
 	}
 }

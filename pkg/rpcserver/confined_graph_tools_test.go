@@ -45,6 +45,7 @@ var graphWalks = []struct{ tool, args string }{
 	{"get_nodes", `{"node_ids":["entity:kestrel_vale","entity:project_nightjar","chunk:a1:000","chunk:b1:000","doc:b1","memory:zeus-mem"]}`},
 	{"knowledge_memory_neighbors", `{"entity_name":"Kestrel Vale","max_depth":2}`},
 	{"knowledge_memory_shortest_path", `{"from_entity_name":"Kestrel Vale","to_entity_name":"Alpha Mill"}`},
+	{"find_nodes", `{"names":["kestrel vale","project nightjar","secretly","owes me"]}`},
 }
 
 // What a key confined to alpha must not be served: beta's text, its chunk
@@ -227,13 +228,18 @@ func TestAConfinedKeyWalksTheGraphOfItsCollectionOnlyOverGRPC(t *testing.T) {
 		if !strings.Contains(answer, "Kestrel Vale") {
 			t.Errorf("alpha %s is not served its own collection: %s", walk.tool, answer)
 		}
+		// Alpha's own chunk holds the name too: find_nodes must serve the
+		// entity node itself.
+		if walk.tool == "find_nodes" && !strings.Contains(answer, `"id":"entity:kestrel_vale"`) {
+			t.Errorf("alpha find_nodes does not serve the entity Kestrel Vale: %s", answer)
+		}
 	}
 	// The operator, unconfined, is served everything.
 	resp, err := tools.CallTool(asKey("op-secret"), &rpcv1.CallToolRequest{Name: "expand_graph", ArgsJson: `{"node_ids":["entity:kestrel_vale"],"max_hops":2}`})
 	if err != nil || !strings.Contains(resp.GetResultJson(), "secretly funds") || !strings.Contains(resp.GetResultJson(), "BETADESC") || !strings.Contains(resp.GetResultJson(), `"source_document_ids"`) {
 		t.Fatalf("operator expand_graph: %v, want beta's chunk, its description and the documents named: %s", err, resp.GetResultJson())
 	}
-	for _, tool := range []string{"graph_list_all", "graph_statistics", "find_nodes"} {
+	for _, tool := range []string{"graph_list_all", "graph_statistics"} {
 		_, err := tools.CallTool(asKey("alpha-secret"), &rpcv1.CallToolRequest{Name: tool, ArgsJson: `{}`})
 		if status.Code(err) != codes.PermissionDenied {
 			t.Errorf("alpha %s: %v, want PermissionDenied", tool, err)
