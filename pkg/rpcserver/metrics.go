@@ -166,9 +166,9 @@ func MetricsInterceptorWithTracer(reg *observability.Registry, tracer observabil
 		span.SetAttribute("rpc.method", method)
 
 		start := time.Now()
-		// The deferred close runs on the normal path only: grpc-go does not
-		// recover a panicking handler, so a panic takes the process with it and
-		// there is no sample left to record correctly.
+		// A handler that panics is answered with Internal by
+		// recoverInterceptor, inside this one, so the deferred close records
+		// it as an error like any other.
 		defer func() {
 			inFlight.Dec()
 			m.duration.Observe(time.Since(start).Seconds(), method)
