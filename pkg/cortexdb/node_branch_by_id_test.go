@@ -56,3 +56,40 @@ func TestFindNodesTakesALimitPastAnySliceSize(t *testing.T) {
 		t.Fatalf("find: %v", err)
 	}
 }
+
+// Under a caller scope, find_nodes holds the same: asking for the type
+// another collection gave an entity serves nothing of it, and a limit past
+// any slice size answers.
+func TestUnderACallerScopeFindNodesNeitherServesATypedEntityNorPanics(t *testing.T) {
+	db, err := Open(DefaultConfig(filepath.Join(t.TempDir(), "typed-find.db")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+	for _, doc := range []KnowledgeSaveRequest{
+		{KnowledgeID: "a1", Collection: "alpha", Content: "Kestrel Vale runs the mill.", Entities: []ToolEntityInput{{Name: "Kestrel Vale"}}},
+		{KnowledgeID: "b1", Collection: "beta", Content: "Kestrel Vale, privately.", Entities: []ToolEntityInput{{Name: "Kestrel Vale", Type: "document", Description: "BETASECRETDESC"}}},
+	} {
+		if _, err := db.SaveKnowledge(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scoped := WithCallerScope(ctx, alphaScope())
+	for _, req := range []ToolFindNodesRequest{
+		{Names: []string{"Kestrel Vale"}, NodeTypes: []string{"document"}},
+		{Names: []string{"Kestrel Vale"}, Limit: 1 << 62},
+	} {
+		out, err := db.GraphRAGTools().FindNodes(scoped, req)
+		if err != nil {
+			t.Fatalf("%+v: %v", req, err)
+		}
+		raw, _ := json.Marshal(out)
+		if strings.Contains(string(raw), "BETASECRETDESC") || strings.Contains(string(raw), `"beta"`) {
+			t.Errorf("%+v serves beta's writing: %s", req, raw)
+		}
+		if len(req.NodeTypes) > 0 && strings.Contains(string(raw), "entity:kestrel_vale") {
+			t.Errorf("node_types [document] serves the entity beta typed document: %s", raw)
+		}
+	}
+}
