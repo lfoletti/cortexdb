@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/liliang-cn/cortexdb/v2/pkg/graph"
@@ -135,7 +136,7 @@ func entityKnownIn(collections []string, collection string) bool {
 // collection is not served, since nothing says which collection it came
 // from.
 func scopedNode(node *graph.GraphNode, permits func(collection string) bool) (*graph.GraphNode, bool) {
-	if _, memory := memoryIDFromGraphNode(node.ID); permits == nil || memory || node.NodeType == "chunk" || node.NodeType == "document" {
+	if _, memory := memoryIDFromGraphNode(node.ID); permits == nil || memory || isDocumentGraphNode(node) {
 		return node, true
 	}
 	if !slices.ContainsFunc(toStringSlice(node.Properties[entityCollectionsKey]), permits) {
@@ -176,4 +177,25 @@ func ofTypes(nodes []*graph.GraphNode, edges []*graph.GraphEdge, scores map[stri
 		return !kept[edge.FromNodeID] || !kept[edge.ToNodeID]
 	})
 	return nodes, edges
+}
+
+// isDocumentGraphNode reports whether a node is a chunk or document node of
+// a document, which follows its document's rules rather than an entity's.
+// It is decided by the id, which ingest derives from the document id
+// (graphDocumentNodeID, graphChunkNodeID), and not by the node's type, which
+// is the last writer's: an entity a writer typed "document" or "chunk" took
+// the document branch and was served whole, with the description another
+// collection wrote, to a caller confined to a collection that knows it.
+func isDocumentGraphNode(node *graph.GraphNode) bool {
+	docID, _ := node.Properties["document_id"].(string)
+	return isDocumentNodeID(node.ID, docID)
+}
+
+// isDocumentNodeID reports whether id is the document node of docID or one
+// of its chunk nodes.
+func isDocumentNodeID(id, docID string) bool {
+	if docID == "" {
+		return false
+	}
+	return id == graphDocumentNodeID(docID) || strings.HasPrefix(id, "chunk:"+docID+":")
 }

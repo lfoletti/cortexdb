@@ -88,7 +88,7 @@ func (s laneScope) mayEnter(step laneStep) bool {
 		return false
 	}
 	switch {
-	case node.NodeType == "chunk" || node.NodeType == "document":
+	case isDocumentNodeID(step.next, node.DocumentID):
 		if _, in := s.docs[node.DocumentID]; !in {
 			return false
 		}

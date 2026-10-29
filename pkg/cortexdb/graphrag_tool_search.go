@@ -374,7 +374,7 @@ func (t *GraphRAGToolbox) ExpandGraph(ctx context.Context, req ToolExpandGraphRe
 func (db *DB) withoutExpiredDocuments(ctx context.Context, nodes []*graph.GraphNode, edges []*graph.GraphEdge, scores map[string]float64) ([]*graph.GraphNode, []*graph.GraphEdge) {
 	docIDs := make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		if docID, _ := node.Properties["document_id"].(string); node.NodeType == "chunk" || node.NodeType == "document" {
+		if docID, _ := node.Properties["document_id"].(string); isDocumentGraphNode(node) {
 			docIDs = append(docIDs, docID)
 		}
 	}
@@ -388,7 +388,7 @@ func (db *DB) withoutExpiredDocuments(ctx context.Context, nodes []*graph.GraphN
 			delete(scores, node.ID)
 			continue
 		}
-		if (node.NodeType == "chunk" || node.NodeType == "document") && !allowDocument(nil, hidden, docID) {
+		if isDocumentGraphNode(node) && !allowDocument(nil, hidden, docID) {
 			dropped[node.ID] = struct{}{}
 			delete(scores, node.ID)
 			continue
