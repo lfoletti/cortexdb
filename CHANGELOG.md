@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `find_nodes` takes `skip_chunks`: nodes whose id begins `chunk:`, the
+  chunks ingest writes, are left out of the match and their text is not
+  decoded. Document nodes are still matched, and an untitled document holds
+  its text, so the saving is largest on a store whose documents have
+  titles. Off by default; an older server ignores the field. Lauro
+  Foletti.
+
 ## [2.141.0] - 2026-10-29
 
 ### Security

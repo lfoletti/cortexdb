@@ -221,6 +221,12 @@ type ToolFindNodesRequest struct {
 	NodeTypes []string `json:"node_types,omitempty"`
 	// Per-name cap. Zero means the default.
 	Limit int `json:"limit,omitempty"`
+	// SkipChunks leaves chunks out of the match: a chunk is a passage, and one
+	// that mentions a name matches it by containment. Chunk text, most of a
+	// store's content, is then not decoded. A chunk is a node whose id
+	// begins "chunk:", as ingest names them; document nodes, whose content is
+	// their title or, untitled, their text, are still matched.
+	SkipChunks bool `json:"skip_chunks,omitempty"`
 }
 
 // ToolFindNodesResponse returns what each requested name resolved to.

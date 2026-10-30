@@ -280,7 +280,7 @@ var confinedTools = map[string]toolRule{
 	"expand_graph": {stores: storeKnowledge | storeMemory, facade: true,
 		args: []string{"node_ids", "max_hops", "edge_types", "node_types", "limit", "relation_policies.*"}},
 	"get_nodes":  {stores: storeKnowledge | storeMemory, facade: true, args: []string{"node_ids"}},
-	"find_nodes": {stores: storeKnowledge | storeMemory, facade: true, args: []string{"names", "node_types", "limit"}},
+	"find_nodes": {stores: storeKnowledge | storeMemory, facade: true, args: []string{"names", "node_types", "limit", "skip_chunks"}},
 	"knowledge_memory_neighbors": {stores: storeKnowledge | storeMemory, facade: true,
 		args: []string{"node_id", "entity_name", "max_depth", "edge_types", "node_types", "direction", "limit"}},
 	"knowledge_memory_shortest_path": {stores: storeKnowledge | storeMemory, facade: true,

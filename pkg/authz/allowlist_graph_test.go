@@ -17,7 +17,7 @@ var graphWalkCalls = map[string]string{
 		"disable_graph":false,"graph_light":true,"max_entities_per_chunk":4}`,
 	"expand_graph":                   `{"node_ids":["entity:kestrel_vale"],"max_hops":2,"edge_types":["runs"],"node_types":["chunk"],"limit":10,"relation_policies":{"runs":{"weight":1}}}`,
 	"get_nodes":                      `{"node_ids":["entity:kestrel_vale","chunk:b1:000"]}`,
-	"find_nodes":                     `{"names":["Kestrel Vale"],"node_types":["entity"],"limit":5}`,
+	"find_nodes":                     `{"names":["Kestrel Vale"],"node_types":["entity"],"limit":5,"skip_chunks":true}`,
 	"knowledge_memory_neighbors":     `{"node_id":"entity:kestrel_vale","entity_name":"Kestrel Vale","max_depth":2,"edge_types":["runs"],"node_types":["chunk"],"direction":"both","limit":10}`,
 	"knowledge_memory_shortest_path": `{"from_node_id":"entity:kestrel_vale","to_node_id":"entity:alpha_mill","from_entity_name":"Kestrel Vale","to_entity_name":"Alpha Mill"}`,
 }

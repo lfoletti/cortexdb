@@ -331,9 +331,10 @@ func (t *GraphRAGToolbox) Definitions() []ToolDefinition {
 			InputSchema: toolObjectSchema(
 				[]string{"names"},
 				map[string]any{
-					"names":      toolStringArraySchema("Names to look up. Batch them: one scan serves all."),
-					"node_types": toolStringArraySchema("Optional node type filter, e.g. Concept."),
-					"limit":      toolIntegerSchema("Optional cap on nodes returned per name."),
+					"names":       toolStringArraySchema("Names to look up. Batch them: one scan serves all."),
+					"node_types":  toolStringArraySchema("Optional node type filter, e.g. Concept."),
+					"limit":       toolIntegerSchema("Optional cap on nodes returned per name."),
+					"skip_chunks": toolBooleanSchema("Set true to leave chunks out of the match: a passage that mentions the name is not a node named by it. Chunk text is then not decoded; document nodes are still matched."),
 				},
 			),
 		},
