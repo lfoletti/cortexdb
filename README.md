@@ -89,6 +89,7 @@ Haiku runs on Claude Code's own model access, so no API key is needed. Language:
 | `CORTEXDB_EMBED_BASE_URL` / `CORTEXDB_EMBED_API_KEY` | `cortexdb-mcp-stdio`: OpenAI-compatible embeddings endpoint and its key (fall back to `OPENAI_BASE_URL` / `OPENAI_API_KEY`); unset = lexical mode |
 | `OPENAI_BASE_URL` / `OPENAI_API_KEY` | Server: the embeddings endpoint and key (`cortexdb-grpc` reads only these, not `CORTEXDB_EMBED_BASE_URL`); unset = lexical mode |
 | `CORTEXDB_EMBED_MODEL` / `CORTEXDB_EMBED_DIM` | Embedding model and dimension, for both (default `text-embedding-3-small` / `1536`) |
+| `CORTEXDB_VECTOR_INDEX` / `CORTEXDB_BINARY_OVERSAMPLE` | Server: `hnsw` (default) or, on a SQLite store, `binary` (1-bit codes in memory, 1/32 of the vectors, each search rescored from the stored vectors, no snapshot); the oversample is the binary shortlist multiplier, from 1 to 1000 (default `8`) |
 | `CORTEXDB_REVIEW_GATE` | Server and `cortexdb-mcp-stdio`: `1` leaves proposed and rejected documents and memories out of search and recall (default off; a curation filter, not access control) |
 | `CORTEXDB_SLOW_MS` | Server: log calls slower than this, with the time each stage took (default `1000`, `0` = none) |
 | `CORTEXDB_TRACE` / `CORTEXDB_TRACE_FILE` | Server: log every call; also append the records to a JSON-lines file |

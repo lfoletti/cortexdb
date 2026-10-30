@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `cortexdb-grpc` reads `CORTEXDB_VECTOR_INDEX` (`hnsw`, the default, or
+  `binary` on a SQLite store) and `CORTEXDB_BINARY_OVERSAMPLE`, and logs the
+  index it opens with. The binary index holds 1-bit codes in memory and
+  keeps no snapshot: a store of 40,000 384-d vectors opens in 42 MB instead
+  of 300. Lauro Foletti.
+
 ## [2.141.0] - 2026-10-29
 
 ### Security
