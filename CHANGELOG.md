@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `find_nodes` takes `skip_chunks`: nodes whose id begins `chunk:`, the
+  chunks ingest writes, are left out of the match and their text is not
+  decoded. Document nodes are still matched, and an untitled document holds
+  its text, so the saving is largest on a store whose documents have
+  titles. Off by default; an older server ignores the field. Lauro
+  Foletti.
 - `cortexdb-grpc` reads `CORTEXDB_VECTOR_INDEX` (`hnsw`, the default, or
   `binary` on a SQLite store) and `CORTEXDB_BINARY_OVERSAMPLE`, and logs the
   index it opens with. The binary index holds 1-bit codes in memory and

@@ -63,8 +63,7 @@ func (t *GraphRAGToolbox) FindNodes(ctx context.Context, req ToolFindNodesReques
 	// One scan for every name asked about. The graph has no index on content —
 	// which is why this tool is needed — so the cost is paid once here rather
 	// than once per name, and callers are expected to batch.
-	rows, err := t.db.query(ctx,
-		`SELECT id, COALESCE(content,''), COALESCE(node_type,'') FROM graph_nodes WHERE TRIM(COALESCE(content,'')) != ''`)
+	rows, err := t.db.query(ctx, findNodesScan(req.SkipChunks))
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +182,22 @@ func (t *GraphRAGToolbox) FindNodes(ctx context.Context, req ToolFindNodesReques
 		response.Matches = append(response.Matches, match)
 	}
 	return response, nil
+}
+
+// findNodesScan is the read of every node FindNodes compares names against.
+// With skipChunks, nodes whose id begins "chunk:", the ids ingest gives the
+// chunks of a document (chunk:<id>:NNN), are left out; the id is tested
+// before the content, so SQLite does not decode a chunk's text. The id, not
+// the type, which is the last writer's: an entity typed "chunk" is still
+// matched, and under a scope the filter reads nothing another collection
+// wrote. An execution run or step given an id that begins "chunk:" is left
+// out too.
+func findNodesScan(skipChunks bool) string {
+	scan := `SELECT id, COALESCE(content,''), COALESCE(node_type,'') FROM graph_nodes WHERE `
+	if skipChunks {
+		scan += `substr(id, 1, 6) != 'chunk:' AND `
+	}
+	return scan + `TRIM(COALESCE(content,'')) != ''`
 }
 
 // foldName normalises a name for comparison: case, and anything that is neither
