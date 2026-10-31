@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -453,73 +454,69 @@ func (s *SQLiteStore) saveIndexSnapshot(ctx context.Context) error {
 	version := s.indexMutations()
 	var indexType string
 	var encode func(io.Writer) error
+	var also func(*sql.Tx) error
 
 	if s.config.IndexType == IndexTypeHNSW && s.hnswIndex != nil {
 		indexType, encode = "HNSW", s.hnswIndex.Save
+		also = func(tx *sql.Tx) error { return s.writeQuantizerRow(ctx, tx) }
 	} else if s.config.IndexType == IndexTypeIVF && s.ivfIndex != nil && s.ivfIndex.Trained {
 		indexType, encode = "IVF", s.ivfIndex.Save
 	} else {
 		return nil // No index to save
 	}
 
-	if err := s.writeSnapshotChunks(ctx, indexType, encode); err != nil {
+	if err := s.writeSnapshotChunks(ctx, indexType, encode, also); err != nil {
 		return fmt.Errorf("failed to save %s index snapshot: %w", indexType, err)
 	}
 
 	s.logger.Info("index snapshot saved", "type", indexType)
 	s.savedMutations.Store(version)
 
-	// Also save quantizer if available
-	if s.quantizer != nil {
-		var qBuf bytes.Buffer
-		var saveErr error
-		if sq, ok := s.quantizer.(*quantization.ScalarQuantizer); ok {
-			saveErr = sq.Save(&qBuf)
-		} else if bq, ok := s.quantizer.(*quantization.BinaryQuantizer); ok {
-			saveErr = bq.Save(&qBuf)
-		}
-
-		if saveErr == nil && qBuf.Len() > 0 {
-			if _, err := s.db.ExecContext(ctx, "INSERT OR REPLACE INTO index_snapshots (type, data, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)", "QUANTIZER", qBuf.Bytes()); err != nil {
-				s.logger.Warn("failed to save quantizer snapshot", "error", err)
-			} else {
-				s.logger.Info("quantizer snapshot saved")
-			}
-		}
-	}
-
 	return nil
+}
+
+// writeQuantizerRow keeps the QUANTIZER row with the HNSW snapshot written in
+// tx: the quantizer that wrote its codes, or no row when it holds floats, so
+// that a quantizer left from an earlier snapshot is never read as this one's.
+func (s *SQLiteStore) writeQuantizerRow(ctx context.Context, tx *sql.Tx) error {
+	saver, ok := s.quantizer.(interface{ Save(io.Writer) error })
+	if !ok {
+		_, err := tx.ExecContext(ctx, "DELETE FROM index_snapshots WHERE type = ?", "QUANTIZER")
+		return err
+	}
+	var buf bytes.Buffer
+	err := saver.Save(&buf)
+	if err == nil {
+		_, err = tx.ExecContext(ctx, "INSERT OR REPLACE INTO index_snapshots (type, data, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)", "QUANTIZER", buf.Bytes())
+	}
+	return err
 }
 
 // loadIndexSnapshot tries to load the index from the database
 func (s *SQLiteStore) loadIndexSnapshot(ctx context.Context, indexType string) (bool, error) {
-	// First try to load quantizer if we're loading an index
+	// Codes in an HNSW snapshot are read by the quantizer that wrote them.
+	// A store reopened without quantization, or with another kind, cannot
+	// read them: the index is rebuilt from the table instead. IVF keeps no
+	// codes, so the quantizer saved beside an earlier HNSW index is not its.
 	var qData []byte
-	err := s.db.QueryRowContext(ctx, "SELECT data FROM index_snapshots WHERE type = ?", "QUANTIZER").Scan(&qData)
-	if err == nil {
-		if s.config.Quantization.Type == "binary" {
-			bq := quantization.NewBinaryQuantizer(s.config.VectorDim)
-			if loadErr := bq.Load(bytes.NewReader(qData)); loadErr == nil {
-				s.quantizer = bq
-				s.logger.Info("binary quantizer loaded from snapshot")
+	if indexType == "HNSW" {
+		err := s.db.QueryRowContext(ctx, "SELECT data FROM index_snapshots WHERE type = ?", "QUANTIZER").Scan(&qData)
+		if err == nil {
+			if !s.loadQuantizer(qData) {
+				s.logger.Info("HNSW snapshot was quantized differently, rebuilding")
+				return false, nil
 			}
-		} else {
-			sq, _ := quantization.NewScalarQuantizer(s.config.VectorDim, s.config.Quantization.NBits)
-			if loadErr := sq.Load(bytes.NewReader(qData)); loadErr == nil {
-				s.quantizer = sq
-				s.logger.Info("scalar quantizer loaded from snapshot")
+			if s.hnswIndex != nil {
+				s.hnswIndex.SetQuantizer(s.quantizer)
 			}
-		}
-
-		if s.quantizer != nil && s.hnswIndex != nil {
-			s.hnswIndex.SetQuantizer(s.quantizer)
 		}
 	}
 
 	// An HNSW snapshot written without quantization holds float32 vectors.
-	// Loading it under a quantized configuration would keep them all, so the
-	// index is rebuilt instead, as codes.
-	if indexType == "HNSW" && s.config.Quantization.Enabled && qData == nil {
+	// Loading it into a store that has a quantizer would keep them all, so the
+	// index is rebuilt instead, as codes. A configuration that makes no
+	// quantizer (scalar with no valid bits) loads it.
+	if indexType == "HNSW" && s.quantizer != nil && qData == nil {
 		s.logger.Info("HNSW snapshot is not quantized, rebuilding")
 		return false, nil
 	}
@@ -605,4 +602,31 @@ func (s *SQLiteStore) IncrementChanges() {
 	if s.config.AutoSave.Enabled {
 		atomic.AddInt32(&s.changesCounter, 1)
 	}
+}
+
+// loadQuantizer restores the quantizer saved with an HNSW snapshot, and
+// reports whether its kind and, for scalar quantization, its bits per
+// component are the ones the configuration asks for. The dimension is the
+// stored vectors' and is not compared.
+func (s *SQLiteStore) loadQuantizer(data []byte) bool {
+	q := s.config.Quantization
+	if !q.Enabled {
+		return false
+	}
+	if q.Type == "binary" {
+		var bq quantization.BinaryQuantizer
+		if bq.Load(bytes.NewReader(data)) != nil {
+			return false
+		}
+		s.quantizer = &bq
+		s.logger.Info("binary quantizer loaded from snapshot")
+		return true
+	}
+	var sq quantization.ScalarQuantizer
+	if sq.Load(bytes.NewReader(data)) != nil || sq.NBits != q.NBits {
+		return false
+	}
+	s.quantizer = &sq
+	s.logger.Info("scalar quantizer loaded from snapshot")
+	return true
 }
