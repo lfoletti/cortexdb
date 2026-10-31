@@ -147,7 +147,7 @@ func main() {
 	}
 	opts = append(opts, recallLog...)
 
-	db, err := cortexdb.Open(cortexdb.DefaultConfig(*dbPath), opts...)
+	db, err := openStore(*dbPath, opts...)
 	if err != nil {
 		log.Fatalf("open cortexdb: %v", err)
 	}

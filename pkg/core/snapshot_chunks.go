@@ -38,8 +38,9 @@ func chunkRange(indexType string) (string, string) {
 }
 
 // writeSnapshotChunks replaces indexType's snapshot with what encode writes,
-// in one transaction, so a reader sees the old snapshot or the new one.
-func (s *SQLiteStore) writeSnapshotChunks(ctx context.Context, indexType string, encode func(io.Writer) error) error {
+// in one transaction, so a reader sees the old snapshot or the new one. also,
+// when not nil, writes in the same transaction what must change with it.
+func (s *SQLiteStore) writeSnapshotChunks(ctx context.Context, indexType string, encode func(io.Writer) error, also func(*sql.Tx) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -65,6 +66,11 @@ func (s *SQLiteStore) writeSnapshotChunks(ctx context.Context, indexType string,
 	}
 	if err := w.Close(); err != nil {
 		return err
+	}
+	if also != nil {
+		if err := also(tx); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }

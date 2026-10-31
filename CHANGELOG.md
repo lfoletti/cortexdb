@@ -12,6 +12,28 @@ All notable changes to this project will be documented in this file.
   its text, so the saving is largest on a store whose documents have
   titles. Off by default; an older server ignores the field. Lauro
   Foletti.
+- `cortexdb-grpc` reads `CORTEXDB_VECTOR_INDEX` (`hnsw`, the default, or
+  `binary` on a SQLite store) and `CORTEXDB_BINARY_OVERSAMPLE`, and logs the
+  index it opens with. The binary index holds 1-bit codes in memory and
+  keeps no snapshot: a store of 40,000 384-d vectors opens in 42 MB instead
+  of 300. Lauro Foletti.
+
+### Fixed
+
+- A store whose HNSW snapshot was written quantized is rebuilt from its table
+  when it is reopened without quantization or with another kind or number of
+  bits, instead of loading codes nothing can read. A store closed under
+  `EmbeddedConfig` (SQ8) panicked when reopened with `DefaultConfig`, as every
+  binary in `cmd/` does, and so did an IVF store with a quantizer left by an
+  earlier HNSW index; one moved between SQ8, SQ4 and binary quantization, or
+  from binary to none, opened and then found almost nothing. The quantizer is
+  now written or dropped in the same transaction as the snapshot, so the
+  rebuild is paid once. A store already closed under the wrong
+  configuration by an earlier version holds codes beside a quantizer that
+  matches them and is not repaired: delete its HNSW snapshot rows
+  (`DELETE FROM index_snapshots WHERE type LIKE 'HNSW%' OR type =
+  'QUANTIZER'`) and it is rebuilt on the next open. `ImportIndex` still loads
+  a graph as it is given. Reported by Lauro Foletti.
 
 ## [2.141.0] - 2026-10-29
 
